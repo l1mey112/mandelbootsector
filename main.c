@@ -7,6 +7,17 @@ static void int13h()
                   ::: "ax");
 }
 
+/* TODO: Proper VSYNC with double buffering.
+         The only issue is the constant segment swiching to
+         memcpy two data locations */
+
+/* static void switch_segment()
+{
+    asm volatile ("mov   $0xA000, %%ax\n"
+                  "mov   %%ax, %%es\n"
+                  ::: "ax");
+} */
+
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef short i16;
@@ -28,8 +39,7 @@ static inline i16 abs(i16 a)
    
    instead of doing the above i am letting the compiler choose what to
    inline and not allowing it to inline this single function              */
-static NOINLINE void vga_pixel(i16 x, i16 y, u8 c)
-{
+static NOINLINE void vga_pixel(i16 x, i16 y, u8 c) {
     if (x >= 0 && x < VGA_WIDTH && y >= 0 && y < VGA_HEIGHT)
         asm volatile ("imul  $320, %%bx\n"
                       "add   %%ax, %%bx\n"
@@ -43,8 +53,7 @@ static NOINLINE void vga_pixel(i16 x, i16 y, u8 c)
    be inlined and its arguments precomputed. not inlining this function 
    will literally leave you with 100 to 200 bytes left. 
    some serious out of the box thinking is required to get out of this one. */
-static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c)
-{
+static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c) {
     i16 dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
     i16 dy = abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
     i16 err = (dx > dy ? dx : -dy) / 2, e2;
@@ -66,7 +75,6 @@ static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c)
 
 #define MAX_ITERATIONS 256
 
-
 static u16 calculate_mandel(f80 _x, f80 _y) {
     f80 x = 0, y = 0;
     u16 iteration = 0;
@@ -80,43 +88,46 @@ static u16 calculate_mandel(f80 _x, f80 _y) {
     return iteration;
 }
 
-static void draw_mandel() {
-    const f80 mandelX_offset = (2.00 + 0.47) / VGA_WIDTH;
-    const f80 mandelY_offset = (1.12 + 1.12) / VGA_HEIGHT;
+static f80 x_scale = 4.00;
+static f80 y_scale = 4.00;
 
-    f80 mandelX = -2.00;
-    f80 mandelY = -1.12;
+static const f80 x_shift = -0.555;
+static const f80 y_shift = -0.5558;
+/* making a constant static means the compiler will
+   automatically inline it to locations where it is used.
+   this is exactly like a `#define variable 0`            */
+
+static void draw_mandel(void) {
+    const f80 mandelX_offset = (x_scale + x_scale) / VGA_WIDTH;
+    const f80 mandelY_offset = (y_scale + y_scale) / VGA_HEIGHT;
+
+    f80 mandelX = -x_scale + x_shift;
+    f80 mandelY = -y_scale + y_shift;
 
     i16 offset = 0;
     for (i16 y = 0; y < VGA_HEIGHT; y++){
         for (i16 x = 0; x < VGA_WIDTH; x++){
             i16 a = calculate_mandel(mandelX, mandelY);
-            // a = a > 16 ? 16 : a;
             asm (
                 "mov %1, %%bx\n"
                 "mov %0, %%es:(%%bx)\n"
                 ::"r"(a), "r"(offset)
                 : "bx"
             );
-            offset++; // BGRA
+            offset++;
             mandelX += mandelX_offset;
         }
-        mandelX = -2.00;
+        mandelX = -x_scale + y_shift;
         mandelY += mandelY_offset;
     }
 }
 
 void main(void) {
-    // u8 s[] = {'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd'};
-    // print(s, sizeof(s));
-    // volatile u16 out = mandelbrot(0.412, 0.32);
-
     int13h();
-    draw_mandel();
-
-    // sdraw_line(20, 50, 100, 140, 4);
+    for (i16 i = 0; i < 29; i++)
+    {
+        draw_mandel();
+        x_scale *= 0.4;
+        y_scale *= 0.4;
+    }
 }
-
-/* 1. could save space by making main a noreturn function
-      and placing a hlt at the end so it doesn't have to
-      generate function callconv instructions */
