@@ -10,6 +10,8 @@ static void int13h()
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef short i16;
+typedef long double f80; // x86 FTW!!
+
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 200
 #define NOINLINE __attribute__((noinline))
@@ -62,14 +64,15 @@ static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c)
     }
 }
 
-#define MAX_ITERATIONS 12
+#define MAX_ITERATIONS 256
 
-u16 mandelbrot(float _x, float _y){
-    float x = 0, y = 0;
+
+static u16 calculate_mandel(f80 _x, f80 _y) {
+    f80 x = 0, y = 0;
     u16 iteration = 0;
     while (x*x + y*y <= 2*2 && iteration < MAX_ITERATIONS)
     {
-        float xtemp = x*x - y*y + _x;
+        f80 xtemp = x*x - y*y + _x;
         y = 2*x*y + _y;
         x = xtemp;
         iteration++;
@@ -77,15 +80,40 @@ u16 mandelbrot(float _x, float _y){
     return iteration;
 }
 
+static void draw_mandel() {
+    const f80 mandelX_offset = (2.00 + 0.47) / VGA_WIDTH;
+    const f80 mandelY_offset = (1.12 + 1.12) / VGA_HEIGHT;
+
+    f80 mandelX = -2.00;
+    f80 mandelY = -1.12;
+
+    i16 offset = 0;
+    for (i16 y = 0; y < VGA_HEIGHT; y++){
+        for (i16 x = 0; x < VGA_WIDTH; x++){
+            i16 a = calculate_mandel(mandelX, mandelY);
+            // a = a > 16 ? 16 : a;
+            asm (
+                "mov %1, %%bx\n"
+                "mov %0, %%es:(%%bx)\n"
+                ::"r"(a), "r"(offset)
+                : "bx"
+            );
+            offset++; // BGRA
+            mandelX += mandelX_offset;
+        }
+        mandelX = -2.00;
+        mandelY += mandelY_offset;
+    }
+}
+
 void main(void) {
     // u8 s[] = {'h', 'e', 'l', 'l', 'o', ' ', 'w', 'o', 'r', 'l', 'd'};
     // print(s, sizeof(s));
-    volatile u16 out = mandelbrot(2.53, 6.32);
-    asm("nop");
-
-    // TODO: compare to c output in float
+    // volatile u16 out = mandelbrot(0.412, 0.32);
 
     int13h();
+    draw_mandel();
+
     // sdraw_line(20, 50, 100, 140, 4);
 }
 

@@ -7,7 +7,7 @@ CC := gcc
 
 CFLAGS := -ggdb3 -m16 -ffreestanding -fno-PIE -nostartfiles -nostdlib -std=gnu99 \
 	-Wall -Wextra -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing \
-	-fno-stack-protector -fno-pic # -fno-leading-underscore
+	-fno-stack-protector -fno-pic -fno-leading-underscore -Wno-unused-function
 
 
 
@@ -50,8 +50,10 @@ run-debug: boot.bin boot.elf
 		-ex 'source stepint.py' \
 		-ex 'layout src' \
 		-ex 'layout regs' \
-		-ex 'hbreak *0x7c00' \
+		-ex 'b main' \
 		-ex 'continue'
+
+#		-ex 'hbreak *0x7c00'
 
 .PHONY: clean
 clean: 
