@@ -7,6 +7,15 @@ static void int13h()
                   ::: "ax");
 }
 
+static void int16h()
+{
+    asm volatile ("mov   $0x0000, %%ax\n"
+                  "int   $0x16\n"
+                  "mov   $0xA000, %%ax\n"
+                  "mov   %%ax, %%es\n"
+                  ::: "ax");
+}
+
 /* TODO: Proper VSYNC with double buffering.
          The only issue is the constant segment swiching to
          memcpy two data locations */
@@ -73,9 +82,9 @@ static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c) {
     }
 }
 
-#define MAX_ITERATIONS 256
+#define MAX_ITERATIONS 255
 
-static u16 calculate_mandel(f80 _x, f80 _y) {
+static u16 calculate_mandel_naive(f80 _x, f80 _y) {
     f80 x = 0, y = 0;
     u16 iteration = 0;
     while (x*x + y*y <= 2*2 && iteration < MAX_ITERATIONS)
@@ -86,6 +95,22 @@ static u16 calculate_mandel(f80 _x, f80 _y) {
         iteration++;
     }
     return iteration;
+}
+
+static u16 calculate_mandel_mul_optimised(f80 _x, f80 _y) {
+    f80 x2 = 0, y2 = 0, x = 0, y = 0;
+    u16 iterations = 0;
+
+    while (x2 + y2 <= 4 && iterations < MAX_ITERATIONS)
+    {
+        y = 2 * x * y + _y;
+        x = x2 - y2 + _x;
+        x2 = x * x;
+        y2 = y * y;
+        
+        iterations++;
+    }
+    return iterations;
 }
 
 static f80 x_scale = 4.00;
@@ -107,11 +132,11 @@ static void draw_mandel(void) {
     i16 offset = 0;
     for (i16 y = 0; y < VGA_HEIGHT; y++){
         for (i16 x = 0; x < VGA_WIDTH; x++){
-            i16 a = calculate_mandel(mandelX, mandelY);
+            u16 a = calculate_mandel_mul_optimised(mandelX, mandelY);
             asm (
                 "mov %1, %%bx\n"
                 "mov %0, %%es:(%%bx)\n"
-                ::"r"(a), "r"(offset)
+                ::"r"(a), "r"(offset) // try inverting the number for prettier results in a closer zoom
                 : "bx"
             );
             offset++;
@@ -123,11 +148,13 @@ static void draw_mandel(void) {
 }
 
 void main(void) {
-    int13h();
+    int13h();      // enter 256 colour VGA mode
+    draw_mandel(); // draw first iteration
+    int16h();      // block waiting for a keypress
     for (i16 i = 0; i < 29; i++)
     {
-        draw_mandel();
         x_scale *= 0.4;
         y_scale *= 0.4;
+        draw_mandel();
     }
 }
