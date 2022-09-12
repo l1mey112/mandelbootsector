@@ -30,7 +30,7 @@ run: boot.bin
 .PHONY: disassemble
 disassemble: boot.elf
 	objdump -Mintel -d -mi386 -Maddr16,data16 boot.elf \
-		--visualize-jumps --visualize-jumps=extended-color
+		--source --source-comment=\& --visualize-jumps --visualize-jumps=extended-color
 
 .PHONY: disassemble-export
 disassemble-export: boot.elf
