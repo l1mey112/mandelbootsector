@@ -12,7 +12,10 @@ mov ss, ax
 mov ds, ax
 mov sp, __stack_top
 cld
-call main
-__hlt:
-hlt
-jmp __hlt
+jmp main
+;call main
+;__hlt:
+;hlt
+;jmp __hlt
+
+; for(;;) asm("hlt");

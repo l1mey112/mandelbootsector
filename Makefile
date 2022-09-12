@@ -9,8 +9,6 @@ CFLAGS := -ggdb3 -m16 -ffreestanding -fno-PIE -nostartfiles -nostdlib -std=gnu99
 	-Wall -Wextra -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing \
 	-fno-stack-protector -fno-pic -fno-leading-underscore -Wno-unused-function
 
-
-
 OPTIMISATIONFLAGS := -Os # -fno-inline-functions-called-once -fno-inline-small-functions
 # read the paragraph above the `vga_pixel` function
 

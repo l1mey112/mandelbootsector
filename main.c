@@ -97,6 +97,36 @@ static u16 calculate_mandel_naive(f80 _x, f80 _y) {
     return iteration;
 }
 
+static inline u8 inp(u16 port) {
+    u8 ret;
+    asm volatile ("inb %1, %0" : "=a" (ret) : "dN" (port));
+    return ret;
+}
+
+static inline void outp(u16 port, u8 value)
+{
+   asm volatile ("outb %%al,%%dx": :"d" (port), "a" (value) : "al", "dx");
+}
+
+static u8 pd = 0; 
+
+#define PALETTE_INDEX 0x03c8
+#define PALETTE_DATA 0x03c9
+
+static void write_palette(){
+    outp(PALETTE_INDEX, 0);
+    for (u16 i = 0; i < 256; i++)
+    {
+        outp(PALETTE_DATA, pd+(i/4));
+        outp(PALETTE_DATA, pd+(i/4));
+        outp(PALETTE_DATA, pd+(i/4));
+    }
+    pd++;
+    if (pd == 64){
+        pd = 0;
+    }
+}
+
 static u16 calculate_mandel_mul_optimised(f80 _x, f80 _y) {
     f80 x2 = 0, y2 = 0, x = 0, y = 0;
     u16 iterations = 0;
@@ -149,6 +179,7 @@ static void draw_mandel(void) {
 
 void main(void) {
     int13h();      // enter 256 colour VGA mode
+
     draw_mandel(); // draw first iteration
     int16h();      // block waiting for a keypress
     for (i16 i = 0; i < 29; i++)
@@ -157,4 +188,6 @@ void main(void) {
         y_scale *= 0.4;
         draw_mandel();
     }
+
+    for(;;) asm("hlt");
 }
