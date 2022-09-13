@@ -24,7 +24,7 @@ static void segment_memcpy()
 
     asm volatile ("mov $0, %%si\n"
                   "mov $0, %%di\n"
-                  "mov $64000, %%cx\n"
+                  "mov $16000, %%cx\n"
                   "rep movsd\n"
                   ::: "ax", "cx", "si", "di");
     
@@ -45,9 +45,9 @@ static void int13h()
 
 static void int16h()
 {
-    asm volatile ("mov   $0x0000, %%ax\n"
+    asm volatile ("mov   $0x00, %%ah\n"
                   "int   $0x16\n"
-                  ::: "ax");
+                  ::: "ah");
 }
 
 /* TODO: Proper VSYNC with double buffering.
@@ -147,24 +147,28 @@ static void wait_for_vblank()
     while (!(inp(VGA_INPUT_STATUS) & VGA_BLANK));
 }
 
-/* static u8 pd = 0; 
-
 #define PALETTE_INDEX 0x03c8
 #define PALETTE_DATA 0x03c9
+
+// static u8 rnd = 285;
+// rnd *= xxxx;
+// 45423
+// 1999
+static u8 rand(void){
+    static u8 rnd = 15;
+    rnd *= 1999;
+    return rnd;
+}
 
 static void write_palette(){
     outp(PALETTE_INDEX, 0);
     for (u16 i = 0; i < 256; i++)
     {
-        outp(PALETTE_DATA, pd+(i/4));
-        outp(PALETTE_DATA, pd+(i/4));
-        outp(PALETTE_DATA, pd+(i/4));
+        outp(PALETTE_DATA, rand());
+        outp(PALETTE_DATA, rand());
+        outp(PALETTE_DATA, rand());
     }
-    pd++;
-    if (pd == 64){
-        pd = 0;
-    }
-} */
+}
 
 // takes up 64 extra bytes compared to the naive implementation
 // it seems to not be worth the space, as i see barely any speedup
@@ -231,21 +235,45 @@ static void display(const char *s){
     }
 }
 
+static u8 getch()
+{
+    u8 ret;
+    asm volatile ("mov   $0x00, %%ah\n"
+                  "int   $0x16\n"
+                  "mov   %%al, %0"
+                  : "=r"(ret)
+                  :: "ax");
+    return ret;
+}
+
+/* while (1) asm volatile ("int  $0x10" : : "a"(0x0E00 | getch()), "b"(7)); */
+
+#define USE_DOUBLE_BUFFERING
+#undef USE_DOUBLE_BUFFERING
+
 void main(void) {
     int13h();      // enter 256 colour VGA mode
-
-    for (i16 i = 0; i < 29; i++)
+    
+#ifdef USE_DOUBLE_BUFFERING
+    for (;;)
     {
-        int16h();  // block waiting for a keypress
-        display("loading.");
-
         segment_to_buffer();
         draw_mandel();
         wait_for_vblank();
         segment_memcpy();
         x_scale *= 0.4;
         y_scale *= 0.4;
+        int16h();  // block waiting for a keypress
+        display("loading.");
     }
-
+#else
+    for (;;)
+    {
+        draw_mandel();
+        x_scale *= 0.4;
+        y_scale *= 0.4;
+        int16h();
+    }
+#endif
     for(;;) asm("hlt");
 }
