@@ -57,47 +57,6 @@ typedef long double f80; // x86 FTW!!
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 200
 
-static inline i16 abs(i16 a)
-{
-    return a < 0 ? -a : a;
-}
-
-static void vga_pixel(i16 x, i16 y, u8 c)
-{
-    if (x >= 0 && x < VGA_WIDTH && y >= 0 && y < VGA_HEIGHT) {
-        u16 pos = y * 320 + x;
-        asm volatile (
-            "mov %%al, %%es:(%%bx)"
-            :: "b"(pos), "a"(c)
-        );
-    }
-}
-
-/* not tagging this function as static will write it out in its entirety.
-   this is far from ideal as calling this function will not allow it to
-   be inlined and its arguments precomputed. not inlining this function 
-   will literally leave you with 100 to 200 bytes left. 
-   some serious out of the box thinking is required to get out of this one. */
-static void draw_line(i16 x1, i16 y1, i16 x2, i16 y2, u8 c) {
-    i16 dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
-    i16 dy = abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-    i16 err = (dx > dy ? dx : -dy) / 2, e2;
-    for(;;) {
-        vga_pixel(x1, y1, c);
-        if (x1 == x2 && y1 == y2)
-            break;
-        e2 = err;
-        if (e2 > -dx) {
-            err -= dy;
-            x1 += sx;
-        }
-        if (e2 < dy) {
-            err += dx;
-            y1 += sy;
-        }
-    }
-}
-
 #define MAX_ITERATIONS 255
 
 static u16 calculate_mandel_naive(f80 _x, f80 _y) {
@@ -140,10 +99,7 @@ static void wait_for_vblank()
 #define PALETTE_INDEX 0x03c8
 #define PALETTE_DATA 0x03c9
 
-// static u8 rnd = 285;
-// rnd *= xxxx;
-// 45423
-// 1999
+
 static u8 rand(void){
     static u8 rnd = 15;
     rnd *= 1999;
@@ -172,8 +128,7 @@ static void write_palette(){
     }
 }
 
-// takes up 64 extra bytes compared to the naive implementation
-// it seems to not be worth the space, as i see barely any speedup
+
 static u16 calculate_mandel_mul_optimised(f80 _x, f80 _y) {
     f80 x2 = 0, y2 = 0, x = 0, y = 0;
     u16 iterations = 0;
@@ -191,24 +146,9 @@ static u16 calculate_mandel_mul_optimised(f80 _x, f80 _y) {
 }
 
 static f80 scale = 4.00;
-/* static f80 x_scale = 4.00;
-static f80 y_scale = 4.00; */
-
-/* static const f80 x_shift = -0.138;
-static const f80 y_shift = -0.8548; */
 
 static const f80 x_shift = -1.78;
 static const f80 y_shift = -0;
-
-/* static const f80 x_shift = -0.47;
-static const f80 y_shift = -1.12 / 2 / VGA_HEIGHT; */
-/* static const f80 x_shift = -0.74;
-static const f80 y_shift = -0.13; */
-/* making a constant static means the compiler will
-   automatically inline it to locations where it is used.
-   this is exactly like a `#define variable 0`            */
-
-static _Bool invpal = (_Bool)0;
 
 static void draw_mandel(void) {
     const f80 mandelX_offset = (scale + scale) / VGA_WIDTH;
@@ -221,10 +161,9 @@ static void draw_mandel(void) {
     for (i16 y = 0; y < VGA_HEIGHT; y++){
         for (i16 x = 0; x < VGA_WIDTH; x++){
             u16 a = calculate_mandel_naive(mandelX, mandelY);
-            //if (invpal) a = ~a;
             asm volatile (
                 "mov %0, %%es:(%%bx)\n"
-                ::"r"(a), "b"(offset) // try inverting 'a' for prettier results in a closer zoom
+                ::"r"(a), "b"(offset)
             );
             offset++;
             mandelX += mandelX_offset;
@@ -257,10 +196,7 @@ static u8 getch()
     return ret;
 }
 
-/* while (1) asm volatile ("int  $0x10" : : "a"(0x0E00 | getch()), "b"(7)); */
-
 #define USE_DOUBLE_BUFFERING
-//#undef USE_DOUBLE_BUFFERING
 
 void main(void) {
     int13h();      // enter 256 colour VGA mode
