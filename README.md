@@ -8,6 +8,8 @@ gitea:     https://git.l-m.dev/l-m/mandelbootsector
 
 github:    https://github.com/l1mey112/mandelbootsector
 
+NOTE: I hope you do read it, it's my largest post yet!
+
 # renders!
 
 ![](/renders/black-1.png)
