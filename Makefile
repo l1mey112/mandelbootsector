@@ -9,8 +9,7 @@ CFLAGS := -ggdb3 -m16 -ffreestanding -fno-PIE -nostartfiles -nostdlib -std=gnu99
 	-Wall -Wextra -ffreestanding -fomit-frame-pointer -fwrapv -fno-strict-aliasing \
 	-fno-stack-protector -fno-pic -fno-leading-underscore -Wno-unused-function
 
-OPTIMISATIONFLAGS := -Os # -fno-inline-functions-called-once -fno-inline-small-functions
-# read the paragraph above the `vga_pixel` function
+OPTIMISATIONFLAGS := -Os
 
 CFILES := $(wildcard *.c)
 ASMFILES := $(wildcard *.asm)
@@ -25,12 +24,12 @@ boot.bin boot.elf: $(CFILES) $(ASMFILES) Makefile linker.ld
 
 .PHONY: run
 run: boot.bin
-	qemu-system-i386 -display spice-app boot.bin
+	qemu-system-i386 boot.bin
 
 .PHONY: disassemble
 disassemble: boot.elf
 	objdump -Mintel -d -mi386 -Maddr16,data16 boot.elf \
-		--source --source-comment=\& --visualize-jumps --visualize-jumps=extended-color
+		--visualize-jumps --visualize-jumps=extended-color
 
 .PHONY: disassemble-export
 disassemble-export: boot.elf

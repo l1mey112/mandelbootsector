@@ -3,7 +3,7 @@
 set -e
 
 size=$(wc -c < $1)
-
+echo $size
 if [ "$size" -gt "510" ]; then # reserve space for 2 bytes
 	printf "\e[1;31msize of $size bytes exceeded 512\e[0m\n"
 	exit 1

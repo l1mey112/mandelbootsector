@@ -14,7 +14,6 @@ static void segment_to_vram()
 
 static void segment_memcpy()
 {
-    segment_to_vram();
     asm volatile ("mov   $0x07E00, %%ax\n"
                   "mov   %%ax, %%ds\n"
                   ::: "ax");
@@ -50,10 +49,6 @@ static void int16h()
                   ::: "ah");
 }
 
-/* TODO: Proper VSYNC with double buffering.
-         The only issue is the constant segment swiching to
-         memcpy two data locations */
-
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef short i16;
@@ -61,27 +56,21 @@ typedef long double f80; // x86 FTW!!
 
 #define VGA_WIDTH 320
 #define VGA_HEIGHT 200
-#define NOINLINE __attribute__((noinline))
 
 static inline i16 abs(i16 a)
 {
     return a < 0 ? -a : a;
 }
 
-/* adding "-fno-inline-functions-called-once -fno-inline-small-functions" 
-   fixes the program by not inlining functions such as these. it may be
-   due to the inline assembly messing with regs they arent supposed to.
-   (tagging this function as inline manually instantly breaks it)       
-   
-   instead of doing the above i am letting the compiler choose what to
-   inline and not allowing it to inline this single function              */
-static NOINLINE void vga_pixel(i16 x, i16 y, u8 c) {
-    if (x >= 0 && x < VGA_WIDTH && y >= 0 && y < VGA_HEIGHT)
-        asm volatile ("imul  $320, %%bx\n"
-                      "add   %%ax, %%bx\n"
-                      "mov   %%cl, %%es:(%%bx)\n"
-                      :: "a"(x), "b"(y), "c"(c)
-                      : "dx");
+static void vga_pixel(i16 x, i16 y, u8 c)
+{
+    if (x >= 0 && x < VGA_WIDTH && y >= 0 && y < VGA_HEIGHT) {
+        u16 pos = y * 320 + x;
+        asm volatile (
+            "mov %%al, %%es:(%%bx)"
+            :: "b"(pos), "a"(c)
+        );
+    }
 }
 
 /* not tagging this function as static will write it out in its entirety.
@@ -133,6 +122,7 @@ static inline u8 inp(u16 port)
                    : "Nd"(port) );
     return ret;
 }
+
 static inline void outp(u16 port, u8 val)
 {
     asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
@@ -162,11 +152,23 @@ static u8 rand(void){
 
 static void write_palette(){
     outp(PALETTE_INDEX, 0);
-    for (u16 i = 0; i < 256; i++)
+    /* for (u16 i = 0; i < 256; i++)
     {
         outp(PALETTE_DATA, rand());
         outp(PALETTE_DATA, rand());
         outp(PALETTE_DATA, rand());
+    } */
+    /* for (u16 i = 0; i < 256; i++)
+    {
+        outp(PALETTE_DATA, i / 4);
+        outp(PALETTE_DATA, i / 4);
+        outp(PALETTE_DATA, i / 4);
+    } */
+    for (u16 i = 0; i < 256; i++)
+    {
+        outp(PALETTE_DATA, i % 20 * (64 / 20));
+        outp(PALETTE_DATA, i % 20 * (64 / 20));
+        outp(PALETTE_DATA, i % 20 * (64 / 20));
     }
 }
 
@@ -188,36 +190,46 @@ static u16 calculate_mandel_mul_optimised(f80 _x, f80 _y) {
     return iterations;
 }
 
-static f80 x_scale = 4.00;
-static f80 y_scale = 4.00;
+static f80 scale = 4.00;
+/* static f80 x_scale = 4.00;
+static f80 y_scale = 4.00; */
 
-static const f80 x_shift = -0.555;
-static const f80 y_shift = -0.5558;
+/* static const f80 x_shift = -0.138;
+static const f80 y_shift = -0.8548; */
+
+static const f80 x_shift = -1.78;
+static const f80 y_shift = -0;
+
+/* static const f80 x_shift = -0.47;
+static const f80 y_shift = -1.12 / 2 / VGA_HEIGHT; */
+/* static const f80 x_shift = -0.74;
+static const f80 y_shift = -0.13; */
 /* making a constant static means the compiler will
    automatically inline it to locations where it is used.
    this is exactly like a `#define variable 0`            */
 
-static void draw_mandel(void) {
-    const f80 mandelX_offset = (x_scale + x_scale) / VGA_WIDTH;
-    const f80 mandelY_offset = (y_scale + y_scale) / VGA_HEIGHT;
+static _Bool invpal = (_Bool)0;
 
-    f80 mandelX = -x_scale + x_shift;
-    f80 mandelY = -y_scale + y_shift;
+static void draw_mandel(void) {
+    const f80 mandelX_offset = (scale + scale) / VGA_WIDTH;
+    const f80 mandelY_offset = (scale + scale) / VGA_HEIGHT;
+
+    f80 mandelX = -scale + x_shift;
+    f80 mandelY = -scale + y_shift;
 
     i16 offset = 0;
     for (i16 y = 0; y < VGA_HEIGHT; y++){
         for (i16 x = 0; x < VGA_WIDTH; x++){
             u16 a = calculate_mandel_naive(mandelX, mandelY);
-            asm (
-                "mov %1, %%bx\n"
+            //if (invpal) a = ~a;
+            asm volatile (
                 "mov %0, %%es:(%%bx)\n"
-                ::"r"(a), "r"(offset) // try inverting the number for prettier results in a closer zoom
-                : "bx"
+                ::"r"(a), "b"(offset) // try inverting 'a' for prettier results in a closer zoom
             );
             offset++;
             mandelX += mandelX_offset;
         }
-        mandelX = -x_scale + y_shift;
+        mandelX = -scale + x_shift;
         mandelY += mandelY_offset;
     }
 }
@@ -225,12 +237,11 @@ static void draw_mandel(void) {
 static void display(const char *s){
     asm volatile ("mov   $0x02, %%ah\n"
                   "mov   $0x00, %%bh\n"
-                  "mov   $0x00, %%dh\n"
-                  "mov   $0x00, %%dl\n"
+                  "mov   $0x00, %%dx\n"
                   "int   $0x10\n"
-                  ::: "ah", "bh", "dh", "dl");
+                  ::: "ah", "bh", "dx");
     while(*s){
-        asm volatile ("int  $0x10" : : "a"(0x0E00 | *s), "b"(7));
+        asm volatile ("int  $0x10" :: "a"(0x0E00 | *s), "b"(255));
         s++;
     }
 }
@@ -249,22 +260,22 @@ static u8 getch()
 /* while (1) asm volatile ("int  $0x10" : : "a"(0x0E00 | getch()), "b"(7)); */
 
 #define USE_DOUBLE_BUFFERING
-#undef USE_DOUBLE_BUFFERING
+//#undef USE_DOUBLE_BUFFERING
 
 void main(void) {
     int13h();      // enter 256 colour VGA mode
-    
+    write_palette();
 #ifdef USE_DOUBLE_BUFFERING
     for (;;)
     {
         segment_to_buffer();
         draw_mandel();
         wait_for_vblank();
+        segment_to_vram();
         segment_memcpy();
-        x_scale *= 0.4;
-        y_scale *= 0.4;
+        scale *= 0.4;
         int16h();  // block waiting for a keypress
-        display("loading.");
+        display("loading...");
     }
 #else
     for (;;)
@@ -272,8 +283,10 @@ void main(void) {
         draw_mandel();
         x_scale *= 0.4;
         y_scale *= 0.4;
-        int16h();
+        if (getch() == 'i') {
+            invpal = !invpal;
+        };
     }
 #endif
-    for(;;) asm("hlt");
+    for(;;);
 }
