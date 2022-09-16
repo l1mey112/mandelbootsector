@@ -14,5 +14,3 @@ github:    https://github.com/l1mey112/mandelbootsector
 ![](/renders/default-pinch-1.png)
 ![](/renders/defaultinv-2.png)
 ![](/renders/popsicle-6.png)
-
-/renders/mandelbrot-one.mp4
