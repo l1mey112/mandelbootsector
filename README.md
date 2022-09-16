@@ -8,4 +8,11 @@ gitea:     https://git.l-m.dev/l-m/mandelbootsector
 
 github:    https://github.com/l1mey112/mandelbootsector
 
+# renders!
+
 ![](/renders/black-1.png)
+![](/renders/default-pinch-1.png)
+![](/renders/defaultinv-2.png)
+![](/renders/popsicle-6.png)
+
+/renders/mandelbrot-one.mp4
